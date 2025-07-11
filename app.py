@@ -7,7 +7,7 @@ from telegram_bot.bot import send_telegram_signal
 from component.trending_table import render_trending_table
 from component.tradingview_chart import display_tradingview_chart
 from utils.nse_scanner import fetch_breakout_candidates
-from utils.advanced_btst_scanner import fetch_btst_candidates
+# from utils.advanced_btst_scanner import fetch_btst_candidates
 
 # 📌 Choose timeframe
 timeframe_map = {
