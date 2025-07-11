@@ -2,7 +2,7 @@ import requests
 
 # Replace these with your bot's details
 TELEGRAM_BOT_TOKEN = "7353581286:AAG6FvyRCVvwFZmHbw5ZYRiHux7KqbwXHA0"
-TELEGRAM_CHAT_ID = "1057590354"
+TELEGRAM_CHAT_ID = "713702924"
 
 def send_telegram_signal(symbol, signal, confidence, timeframe):
     """
