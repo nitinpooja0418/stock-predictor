@@ -26,9 +26,9 @@ stocks_data = [
 ]
 
 # 📋 Render table + show TradingView chart
-watchlist = render_trending_table(stocks_data, selected_tf)
-selected_stock = st.selectbox("📈 Select stock for live chart", watchlist)
-display_tradingview_chart(selected_stock, tv_interval)
+# watchlist = render_trending_table(stocks_data, selected_tf)
+# selected_stock = st.selectbox("📈 Select stock for live chart", watchlist)
+# display_tradingview_chart(selected_stock, tv_interval)
 
 st.set_page_config(page_title="AI Stock Predictor", layout="wide")
 
@@ -48,3 +48,45 @@ if st.button("Predict"):
 
         if st.checkbox("Send signal to Telegram"):
             send_telegram_signal(selected_stock, signal, confidence, timeframe=selected_timeframe)
+
+
+from utils.nse_scanner import fetch_breakout_candidates
+
+candidates = fetch_breakout_candidates()
+
+for stock_data in candidates:
+    stock = stock_data["Stock"]
+    ltp = stock_data["LTP"]
+    change = stock_data["% Change"]
+
+    trend, reason = get_trend_prediction(stock)  # Your prediction logic
+
+    trending_data.append({
+        "Stock": stock,
+        "LTP": ltp,
+        "% Change": change,
+        "Trend": trend,
+        "Reason": reason
+    })
+
+render_trending_table(trending_data)
+
+
+
+from utils.advanced_btst_scanner import fetch_btst_candidates
+
+fno_stocks = fetch_fno_list()  # From previous module
+btst_setups = fetch_btst_candidates(fno_stocks)
+
+trending_data = []
+
+for stock_data in btst_setups:
+    trending_data.append({
+        "Stock": stock_data["Stock"],
+        "LTP": stock_data["LTP"],
+        "% Change": "-",  # you can fetch separately if needed
+        "Trend": stock_data["Trend"],
+        "Reason": stock_data["Reason"]
+    })
+
+render_trending_table(trending_data)
