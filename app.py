@@ -26,9 +26,9 @@ stocks_data = [
 ]
 
 # 📋 Render table + show TradingView chart
-# watchlist = render_trending_table(stocks_data, selected_tf)
-# selected_stock = st.selectbox("📈 Select stock for live chart", watchlist)
-# display_tradingview_chart(selected_stock, tv_interval)
+watchlist = render_trending_table(stocks_data, selected_tf)
+selected_stock = st.selectbox("📈 Select stock for live chart", watchlist)
+display_tradingview_chart(selected_stock, tv_interval)
 
 st.set_page_config(page_title="AI Stock Predictor", layout="wide")
 
