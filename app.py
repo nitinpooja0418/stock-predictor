@@ -6,8 +6,8 @@ from telegram_bot.bot import send_telegram_signal
 
 from component.trending_table import render_trending_table
 # from component.tradingview_chart import display_tradingview_chart
-from utils.advanced_btst_scanner import fetch_btst_candidates
 from utils.nse_scanner import fetch_breakout_candidates
+from utils.advanced_btst_scanner import fetch_btst_candidates
 
 # 📌 Choose timeframe
 timeframe_map = {
@@ -52,23 +52,6 @@ if st.button("Predict"):
             send_telegram_signal(selected_stock, signal, confidence, timeframe=selected_timeframe)
 
 
-fno_stocks = fetch_fno_list()  # From previous module
-btst_setups = fetch_btst_candidates(fno_stocks)
-
-trending_data = []
-
-for stock_data in btst_setups:
-    trending_data.append({
-        "Stock": stock_data["Stock"],
-        "LTP": stock_data["LTP"],
-        "% Change": "-",  # you can fetch separately if needed
-        "Trend": stock_data["Trend"],
-        "Reason": stock_data["Reason"]
-    })
-
-render_trending_table(trending_data)
-
-
 candidates = fetch_breakout_candidates()
 
 for stock_data in candidates:
@@ -87,6 +70,25 @@ for stock_data in candidates:
     })
 
 render_trending_table(trending_data)
+
+
+fno_stocks = fetch_fno_list()  # From previous module
+btst_setups = fetch_btst_candidates(fno_stocks)
+
+trending_data = []
+
+for stock_data in btst_setups:
+    trending_data.append({
+        "Stock": stock_data["Stock"],
+        "LTP": stock_data["LTP"],
+        "% Change": "-",  # you can fetch separately if needed
+        "Trend": stock_data["Trend"],
+        "Reason": stock_data["Reason"]
+    })
+
+render_trending_table(trending_data)
+
+
 
 
 
