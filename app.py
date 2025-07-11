@@ -15,7 +15,7 @@ fno_stocks = [
 ]
 
 # Fetch BTST / breakout setup candidates
-trending_data = []
+trending_data = ["TCS"]
 
 try:
     trending_data = fetch_btst_candidates(fno_stocks)
