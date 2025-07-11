@@ -49,6 +49,23 @@ if st.button("Predict"):
         if st.checkbox("Send signal to Telegram"):
             send_telegram_signal(selected_stock, signal, confidence, timeframe=selected_timeframe)
 
+from utils.advanced_btst_scanner import fetch_btst_candidates
+
+fno_stocks = fetch_fno_list()  # From previous module
+btst_setups = fetch_btst_candidates(fno_stocks)
+
+trending_data = []
+
+for stock_data in btst_setups:
+    trending_data.append({
+        "Stock": stock_data["Stock"],
+        "LTP": stock_data["LTP"],
+        "% Change": "-",  # you can fetch separately if needed
+        "Trend": stock_data["Trend"],
+        "Reason": stock_data["Reason"]
+    })
+
+render_trending_table(trending_data)
 
 from utils.nse_scanner import fetch_breakout_candidates
 
@@ -73,20 +90,3 @@ render_trending_table(trending_data)
 
 
 
-from utils.advanced_btst_scanner import fetch_btst_candidates
-
-fno_stocks = fetch_fno_list()  # From previous module
-btst_setups = fetch_btst_candidates(fno_stocks)
-
-trending_data = []
-
-for stock_data in btst_setups:
-    trending_data.append({
-        "Stock": stock_data["Stock"],
-        "LTP": stock_data["LTP"],
-        "% Change": "-",  # you can fetch separately if needed
-        "Trend": stock_data["Trend"],
-        "Reason": stock_data["Reason"]
-    })
-
-render_trending_table(trending_data)
