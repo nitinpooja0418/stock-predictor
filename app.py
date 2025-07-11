@@ -60,7 +60,7 @@ for stock_data in candidates:
     change = stock_data["% Change"]
 
     trend, reason = get_trend_prediction(stock)  # Your prediction logic
-
+    trending_data = []
     trending_data.append({
         "Stock": stock,
         "LTP": ltp,
