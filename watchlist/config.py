@@ -1,0 +1,26 @@
+# List of actively traded F&O stocks (customizable)
+stock_list = [
+    "RELIANCE",
+    "HDFCBANK",
+    "ICICIBANK",
+    "INFY",
+    "TCS",
+    "LT",
+    "SBIN",
+    "AXISBANK",
+    "BAJFINANCE",
+    "ITC",
+    "ADANIENT",
+    "HINDUNILVR",
+    "NESTLEIND",
+    "HCLTECH",
+    "TECHM",
+    "WIPRO",
+    "ULTRACEMCO",
+    "JSWSTEEL",
+    "KOTAKBANK",
+    "INDIGO",
+    "HDFCLIFE",
+    "SBILIFE",
+    "DIXON"
+]
