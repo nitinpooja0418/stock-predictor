@@ -4,8 +4,8 @@ from watchlist.config import stock_list
 from utils.helpers import get_signal_strength
 from telegram_bot.bot import send_telegram_signal
 
-from components.trending_table import render_trending_table
-from components.tradingview_chart import display_tradingview_chart
+from component.trending_table import render_trending_table
+from component.tradingview_chart import display_tradingview_chart
 
 # 📌 Choose timeframe
 timeframe_map = {
