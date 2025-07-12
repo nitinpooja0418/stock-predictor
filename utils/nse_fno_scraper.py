@@ -1,5 +1,6 @@
 import requests
 import pandas as pd
+import streamlit as st
 
 @st.cache_data(ttl=3600)
 def get_fno_stocks():
