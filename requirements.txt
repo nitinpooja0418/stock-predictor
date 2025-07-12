@@ -7,4 +7,7 @@ beautifulsoup4
 requests
 setuptools
 pandas_ta
-squeeze-mumentum-indicator
+squeeze-momentum-indicator
+ta
+matplotlib
+lxml
