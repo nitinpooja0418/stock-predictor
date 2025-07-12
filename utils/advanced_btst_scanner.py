@@ -7,6 +7,7 @@ def fetch_btst_candidates(fno_stocks):
 
     for symbol in fno_stocks:
         print(f"Processing: {symbol}")
+        print(ta.ema(df["Close"], length=20).shape)
 
         try:
             df = yf.download(f"{symbol}.NS", period="5d", interval="15m", progress=False)
