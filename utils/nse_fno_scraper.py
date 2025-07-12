@@ -1,23 +1,21 @@
 import streamlit as st
 import requests
 import time
+import os
 
 @st.cache_data(ttl=3600)
 def get_fno_stocks():
     try:
         url = "https://www.nseindia.com/api/liveEquity-derivatives?index=stock_fut"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            "Accept-Language": "en-US,en;q=0.9",
+            "User-Agent": "Mozilla/5.0",
             "Referer": "https://www.nseindia.com/"
         }
 
         session = requests.Session()
         session.headers.update(headers)
-
-        # Initial request to get cookies
         session.get("https://www.nseindia.com", timeout=5)
-        time.sleep(1)  # Wait 1 sec
+        time.sleep(1)
 
         response = session.get(url, timeout=5)
         data = response.json()
@@ -26,5 +24,12 @@ def get_fno_stocks():
         return sorted(list(set(stocks)))
 
     except Exception as e:
-        print(f"❌ NSE fetch error: {e}")
-        return []
+        print(f"⚠️ NSE fetch error: {e}")
+        # Fallback to local stock list
+        try:
+            with open("data/fno_stock_list.txt", "r") as file:
+                fallback_stocks = [line.strip() for line in file if line.strip()]
+                return fallback_stocks
+        except Exception as fe:
+            print(f"⚠️ Fallback failed: {fe}")
+            return []
