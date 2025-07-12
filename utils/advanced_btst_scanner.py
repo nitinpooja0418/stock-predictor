@@ -1,80 +1,49 @@
 import yfinance as yf
 import pandas as pd
-import numpy as np
+import pandas_ta as ta
 
-def fetch_btst_candidates(stock_list):
+def fetch_btst_candidates(fno_stocks):
     btst_candidates = []
 
-    for symbol in stock_list:
+    for symbol in fno_stocks:
+        print(f"Processing: {symbol}")
+
         try:
-            # Fetch 15-min data of last 5 days
-            data = yf.download(f"{symbol}.NS", period="5d", interval="15m", progress=False)
-            if len(data) < 30:
+            df = yf.download(f"{symbol}.NS", period="5d", interval="15m", progress=False)
+            if df.empty or "Close" not in df.columns:
+                print(f"Skipping {symbol} — No data.")
                 continue
 
-            # === Indicators ===
-            data["EMA20"] = data["Close"].ewm(span=20).mean()
-            data["EMA50"] = data["Close"].ewm(span=50).mean()
-            data["AvgVol"] = data["Volume"].rolling(5).mean()
-            data["RSI"] = compute_rsi(data["Close"])
+            df.dropna(inplace=True)
 
-            # === Price Action ===
-            data["InsideBar"] = (data["High"] < data["High"].shift(1)) & (data["Low"] > data["Low"].shift(1))
-            data["VolumeSpike"] = data["Volume"] > 1.5 * data["AvgVol"]
-            data["Trend"] = data["EMA20"] > data["EMA50"]
-            data["BreakoutHigh"] = data["Close"] > data["High"].shift(1).rolling(20).max()
+            df["EMA20"] = ta.ema(df["Close"], length=20).squeeze()
+            df["EMA50"] = ta.ema(df["Close"], length=50).squeeze()
+            df["RSI"] = ta.rsi(df["Close"], length=14).squeeze()
+            df["Volume_SMA20"] = df["Volume"].rolling(window=20).mean()
 
-            latest = data.iloc[-1]
-            prev = data.iloc[-2]
+            last = df.iloc[-1]
+            prev = df.iloc[-2]
 
-            # === Conditions (Score Based) ===
-            score = 0
             reasons = []
 
-            if latest["Trend"]:
-                score += 1
-                reasons.append("20 EMA > 50 EMA")
-
-            if latest["BreakoutHigh"]:
-                score += 1
-                reasons.append("Structure Breakout")
-
-            if latest["VolumeSpike"]:
-                score += 1
+            if last["Close"] > last["EMA20"]:
+                reasons.append("Above 20 EMA")
+            if last["Volume"] > 1.2 * last["Volume_SMA20"]:
                 reasons.append("Volume Spike")
+            if last["RSI"] > 55:
+                reasons.append("RSI > 55")
+            if last["Close"] > prev["High"]:
+                reasons.append("Breakout Candle")
 
-            if prev["InsideBar"]:
-                score += 1
-                reasons.append("Inside Bar")
-
-            if latest["RSI"] > 55:
-                score += 1
-                reasons.append(f"RSI {int(latest['RSI'])} > 55")
-
-            # === Final filter ===
-            if score >= 4:
+            # Final filter: at least 3 confirmations
+            if len(reasons) >= 3:
                 btst_candidates.append({
-                    "Stock": symbol,
-                    "LTP": round(latest["Close"], 2),
-                    "% Change": round(((latest["Close"] - data['Close'].iloc[-2]) / data['Close'].iloc[-2]) * 100, 2),
-                    "Trend": "BTST Setup",
-                    "Reason": " + ".join(reasons)
+                    "symbol": symbol,
+                    "reasons": ", ".join(reasons)
                 })
 
         except Exception as e:
-            print(f"Error processing {symbol}: {e}")
+            print(f"⚠️ Error processing {symbol}: {e}")
             continue
 
     return btst_candidates
-
-
-# === Helper: RSI Calculation ===
-def compute_rsi(series, period=14):
-    delta = series.diff()
-    gain = np.where(delta > 0, delta, 0)
-    loss = np.where(delta < 0, -delta, 0)
-    avg_gain = pd.Series(gain).rolling(window=period).mean()
-    avg_loss = pd.Series(loss).rolling(window=period).mean()
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return pd.Series(rsi, index=series.index)
