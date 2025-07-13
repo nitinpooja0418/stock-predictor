@@ -1,72 +1,59 @@
-import numpy as np
 import streamlit as st
 import pandas as pd
 from utils.nse_fno_scraper import get_fno_stocks
 from utils.advanced_btst_scanner import fetch_btst_candidates
 from component.trending_table import render_trending_table
 
-results = fetch_btst_candidates(["RELIANCE"], timeframe="15m")
-print(results)
-
 # Page setup
 st.set_page_config(page_title="Stock Trend Dashboard", layout="wide")
 st.title("📈 AI Stock Trend & BTST Dashboard")
 
-# -------------------------------
-# Timeframe + Filter UI
-# -------------------------------
+# Timeframe selector
 timeframe = st.selectbox("⏱️ Select Timeframe", ["5m", "15m", "Daily"])
 filter_option = st.selectbox("📊 Filter by Confidence / Trend", [
-    "All", "Only 4/4", "3/4+", "BTST Setup"
+    "All", "Only 5/5", "4/5+", "BTST Setup"
 ])
 
-# -------------------------------
-# Get F&O Stock List
-# -------------------------------
-with st.spinner("📡 Fetching live F&O stock list from NSE..."):
+# --- Single Stock Testing ---
+st.markdown("### 🔍 Test a Single Stock (Optional)")
+single_stock = st.text_input("Enter NSE Stock Symbol (e.g., RELIANCE, TCS, INFY)", "")
+
+if single_stock:
+    st.info(f"Running analysis for `{single_stock.upper()}`...")
+    single_result = fetch_btst_candidates([single_stock.upper()], timeframe=timeframe, test_mode=True)
+
+    if single_result:
+        st.success("✅ BTST setup detected!")
+        df = pd.DataFrame(single_result)
+        st.dataframe(df)
+    else:
+        st.warning("⚠️ No valid BTST setup found for this stock.")
+    st.stop()  # Stop further processing if testing single stock
+
+# --- Full F&O List Analysis ---
+with st.spinner("📡 Fetching F&O stock list..."):
     fno_stocks = get_fno_stocks()
 
 if not fno_stocks:
-    st.error("❌ Failed to load F&O stock list. Please retry later or check fallback.")
+    st.error("❌ Could not load F&O list.")
     st.stop()
 
-# -------------------------------
-# BTST Candidates Section
-# -------------------------------
-st.markdown("---")
-st.subheader("📊 BTST Stock Candidates (High Accuracy)")
-
-with st.spinner("🔍 Scanning F&O stocks for BTST setups..."):
-    btst_data = fetch_btst_candidates(fno_stocks, timeframe=timeframe)
-
-# -------------------------------
-# Trending Stock Table
-# -------------------------------
-st.markdown("## 🔥 Trending Stocks (Breakout / Breakdown)")
+st.markdown("## 🔥 Trending Stocks (Breakout / BTST)")
 
 try:
-    filtered_data = btst_data.copy()
+    btst_data = fetch_btst_candidates(fno_stocks, timeframe=timeframe)
 
-    if filter_option == "Only 4/4":
-        filtered_data = [s for s in filtered_data if s.get("Confidence") == "4/4"]
-    elif filter_option == "3/4+":
-        filtered_data = [s for s in filtered_data if s.get("Confidence", "").startswith(("3", "4"))]
+    if filter_option == "Only 5/5":
+        btst_data = [s for s in btst_data if s.get("Confidence", "").startswith("5")]
+    elif filter_option == "4/5+":
+        btst_data = [s for s in btst_data if s.get("Confidence", "").startswith(("4", "5"))]
     elif filter_option == "BTST Setup":
-        filtered_data = [s for s in filtered_data if s.get("Trend") == "BTST Setup"]
+        btst_data = [s for s in btst_data if s.get("Trend") == "BTST Setup"]
 
-    if filtered_data:
-        render_trending_table(filtered_data)
+    if btst_data:
+        render_trending_table(btst_data)
     else:
-        st.warning("No trending stocks found right now.")
+        st.warning("No trending stocks found at the moment.")
 
 except Exception as e:
-    st.error(f"⚠️ Error while scanning trending stocks: {e}")
-
-# -------------------------------
-# Show Raw DataFrame
-# -------------------------------
-if btst_data:
-    st.success(f"✅ {len(btst_data)} strong BTST candidates found.")
-    st.dataframe(pd.DataFrame(btst_data))
-else:
-    st.info("⚠️ No high-probability BTST candidates found at the moment.")
+    st.error(f"⚠️ Error during scan: {e}")
