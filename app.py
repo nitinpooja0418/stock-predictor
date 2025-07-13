@@ -17,6 +17,9 @@ filter_option = st.selectbox("📊 Filter by Confidence / Trend", [
     "All", "Only 5/5", "4/5+", "BTST Setup"
 ])
 
+with st.spinner("🔍 Scanning F&O stocks for BTST/trending setups..."):
+    btst_data = fetch_btst_candidates(fno_stocks, timeframe=timeframe)
+
 # -------------------------------
 # Get F&O Stock List
 # -------------------------------
