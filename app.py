@@ -1,46 +1,51 @@
 import streamlit as st
 import pandas as pd
 from utils.advanced_btst_scanner import fetch_btst_candidates
+from utils.nse_fno_scraper import get_fno_stocks
 
-# Load stock list
-with open("data/fno_stock_list.txt") as f:
-    fno_stocks = [line.strip() for line in f if line.strip()]
+# Page setup
+st.set_page_config(page_title="Stock Trend Dashboard", layout="wide")
+st.title("📈 Intraday & BTST Stock Scanner")
 
-# Sidebar
-scan_type = st.sidebar.selectbox("Select Scan Type", ["BTST", "Intraday"])
-timeframe = "15m" if scan_type == "BTST" else "5m"
+# Timeframe selection
+timeframe = st.selectbox("⏱️ Select Timeframe", ["5m", "15m", "1d"], index=1)
 
-st.title("📈 Stock Trend Scanner")
-st.markdown(f"Currently scanning for **{scan_type} setups** using `{timeframe}` timeframe...")
+# -------------------------------
+# Load F&O stock list
+# -------------------------------
+try:
+    fno_stocks = get_fno_stocks()
+except Exception as e:
+    st.error(f"❌ Failed to fetch stock list: {e}")
+    st.stop()
 
-with st.spinner("🔍 Scanning stocks..."):
-    results = fetch_btst_candidates(
-        stock_list=fno_stocks,
-        timeframe=timeframe,
-        min_conditions=2,
-        test_mode=False
-    )
+# -------------------------------
+# Stock scanning
+# -------------------------------
+st.markdown("## 🔍 Scanning Stocks for BTST/Intraday Setups")
 
-# Display results
+with st.spinner("Scanning all F&O stocks..."):
+    results = fetch_btst_candidates(fno_stocks, timeframe=timeframe, min_conditions=3)
+
 if results:
     df = pd.DataFrame(results)
-    df = df.sort_values(by="Confidence", ascending=False)
-    st.success(f"✅ {len(df)} stock(s) found!")
-    st.dataframe(df[["Stock", "LTP", "RSI", "Confidence", "Reason", "Trend", "TradingView"]], use_container_width=True)
+    st.success(f"✅ {len(df)} potential stocks found")
+    st.dataframe(df[['Stock', 'Close', 'Trend', 'Confidence', 'Reason']], use_container_width=True)
 else:
     st.warning("⚠️ No stock met the criteria.")
 
-# Optional: Show skipped stocks
-if "skipped_stocks" in st.session_state:
-    st.markdown("### 📉 Skipped Stocks by RSI")
-    df_skipped = pd.DataFrame(st.session_state["skipped_stocks"])
-    if not df_skipped.empty and "RSI" in df_skipped.columns:
-        st.dataframe(df_skipped.sort_values("RSI", ascending=False).head(10))
-    else:
-        st.info("No skipped stock data available.")
+# -------------------------------
+# Logs for skipped stocks
+# -------------------------------
+st.markdown("---")
+with st.expander("📄 View Skipped Stocks & Logs"):
+    skipped = st.session_state.get("skipped_stocks", [])
+    logs = st.session_state.get("scan_logs", [])
 
-# Optional: Scan logs
-if "scan_logs" in st.session_state:
-    with st.expander("📝 View Scan Logs"):
-        for log in st.session_state["scan_logs"]:
+    if skipped:
+        st.subheader("Skipped Stocks")
+        st.dataframe(pd.DataFrame(skipped))
+    if logs:
+        st.subheader("Logs")
+        for log in logs:
             st.text(log)
