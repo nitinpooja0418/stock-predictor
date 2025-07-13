@@ -4,6 +4,7 @@ from ta.trend import EMAIndicator, MACD
 from ta.momentum import RSIIndicator
 
 def fetch_btst_candidates(stock_list, timeframe="15m"):
+    print(f"📌 DEBUG: fetch_btst_candidates() called with timeframe = {timeframe}")
     btst_stocks = []
 
     # Map UI-friendly timeframe to yfinance format
