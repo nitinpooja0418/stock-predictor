@@ -2,66 +2,75 @@ import yfinance as yf
 import pandas as pd
 from ta.trend import EMAIndicator, MACD
 from ta.momentum import RSIIndicator
+import streamlit as st
 
-def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=2):
+def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=2, test_mode=False):
     btst_stocks = []
-
-    if timeframe == "5m":
-        period = "2d"
-    elif timeframe == "15m":
-        period = "5d"
-    else:  # daily
-        timeframe = "1d"
-        period = "30d"
+    skipped_stocks = []
+    scan_logs = []
 
     for symbol in stock_list:
         try:
-            df = yf.download(symbol + ".NS", period=period, interval=timeframe, progress=False)
+            df = yf.download(symbol + ".NS", period="5d", interval=timeframe, progress=False)
 
-            if df.empty or len(df) < 20:
+            if df.empty or len(df) < 30:
+                scan_logs.append(f"{symbol}: Insufficient data")
                 continue
 
-            df = df[["Close", "Volume", "High"]].dropna()
-            if any(col not in df.columns or df[col].ndim != 1 for col in ["Close", "Volume", "High"]):
-                print(f"❌ Skipping {symbol}: Missing column")
+            df.dropna(inplace=True)
+
+            required_cols = ["Close", "Volume", "High"]
+            if not all(col in df.columns for col in required_cols):
+                scan_logs.append(f"❌ Error with {symbol}: {required_cols}")
                 continue
 
             df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
-            df["MACD_diff"] = MACD(close=df["Close"]).macd_diff()
+            macd_indicator = MACD(close=df["Close"], window_slow=26, window_fast=12, window_sign=9)
+            df["MACD"] = macd_indicator.macd()
+            df["MACD_signal"] = macd_indicator.macd_signal()
 
             last = df.iloc[-1]
             prev = df.iloc[-2]
-            reason = []
+
+            reasons = []
 
             if last["Close"] > last["EMA20"]:
-                reason.append("Above EMA20")
+                reasons.append("Above EMA20")
+
+            if last["Volume"] > prev["Volume"] * 1.5:
+                reasons.append("Volume Spike")
 
             if last["RSI"] > 55:
-                reason.append("RSI > 55")
+                reasons.append("RSI > 55")
 
-            if last["MACD_diff"] > 0:
-                reason.append("MACD Positive")
-
-            if last["Volume"] > prev["Volume"] * 1.2:
-                reason.append("Volume Spike")
+            if last["MACD"] > last["MACD_signal"]:
+                reasons.append("MACD Crossover")
 
             if last["Close"] > df["High"].rolling(10).max().iloc[-2]:
-                reason.append("High Breakout")
+                reasons.append("High Breakout")
 
-            if len(reason) >= min_conditions:
+            if len(reasons) >= min_conditions:
+                trend_type = "BTST Setup" if timeframe in ["15m", "1d"] else "Intraday Setup"
                 btst_stocks.append({
                     "Stock": symbol,
                     "Close": round(last["Close"], 2),
-                    "Trend": "BTST Setup" if timeframe == "1d" else "Intraday Setup",
-                    "Confidence": f"{len(reason)}/5",
-                    "Reason": ", ".join(reason),
+                    "Trend": trend_type,
+                    "Confidence": f"{len(reasons)}/5",
+                    "Reason": ", ".join(reasons),
                     "LTP": round(last["Close"], 2),
+                    "RSI": round(last["RSI"], 2),
                     "TradingView": f"https://in.tradingview.com/symbols/NSE-{symbol}/"
                 })
+            else:
+                skipped_stocks.append({"Stock": symbol, "RSI": round(last.get("RSI", 0), 2)})
 
         except Exception as e:
-            print(f"❌ Error with {symbol}: {e}")
+            scan_logs.append(f"⚠️ {symbol}: {e}")
             continue
+
+    if not test_mode:
+        st.session_state["skipped_stocks"] = skipped_stocks
+        st.session_state["scan_logs"] = scan_logs
 
     return btst_stocks
