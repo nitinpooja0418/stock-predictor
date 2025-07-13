@@ -40,11 +40,14 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
             if malformed:
                 continue
 
-            df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
-            df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
-            macd = MACD(close=df["Close"])
-            df["MACD"] = macd.macd()
-            df["MACD_signal"] = macd.macd_signal()
+            # Indicators (flattened)
+            close_series = pd.Series(df["Close"].values.ravel(), index=df.index)
+            df["EMA20"] = pd.Series(EMAIndicator(close=close_series, window=20).ema_indicator().values.ravel(), index=df.index)
+            df["RSI"] = pd.Series(RSIIndicator(close=close_series, window=14).rsi().values.ravel(), index=df.index)
+
+            macd = MACD(close=close_series)
+            df["MACD"] = pd.Series(macd.macd().values.ravel(), index=df.index)
+            df["MACD_signal"] = pd.Series(macd.macd_signal().values.ravel(), index=df.index)
 
             last = df.iloc[-1]
             prev = df.iloc[-2]
