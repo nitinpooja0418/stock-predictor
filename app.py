@@ -1,5 +1,4 @@
 import numpy as np
-NaN = np.nan
 import streamlit as st
 import pandas as pd
 from utils.nse_fno_scraper import get_fno_stocks
