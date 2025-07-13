@@ -14,31 +14,27 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
             df = yf.download(symbol + ".NS", period="5d", interval=timeframe, progress=False)
 
             if df.empty or len(df) < 30:
-                scan_logs.append(f"{symbol}: Insufficient data")
+                scan_logs.append(f"⚠️ {symbol}: Insufficient data")
                 continue
 
             df.dropna(inplace=True)
 
             required_cols = ["Close", "Volume", "High"]
-            skip_due_to_column = False
+            malformed = False
             for col in required_cols:
                 if col not in df.columns:
-                    scan_logs.append(f"❌ Error with {symbol}: Missing {col} column")
-                    skip_due_to_column = True
+                    scan_logs.append(f"⚠️ {symbol}: Missing {col} column")
+                    malformed = True
                     break
-                # Ensure column is 1D series
-                if isinstance(df[col], pd.DataFrame):
-                    df[col] = df[col].squeeze()
-                if hasattr(df[col], "values") and df[col].values.ndim > 1:
-                    df[col] = pd.Series(df[col].values.flatten(), index=df.index)
-            
+                col_values = df[col].values
+                if col_values.ndim > 1:
+                    df[col] = pd.Series(col_values.flatten(), index=df.index)
                 if df[col].ndim != 1:
-                    scan_logs.append(f"❌ Error with {symbol}: {col} column is not 1D even after flattening")
-                    skip_due_to_column = True
+                    scan_logs.append(f"⚠️ {symbol}: {col} is not 1D after flattening")
+                    malformed = True
                     break
-                if skip_due_to_column:
-                    continue
-
+            if malformed:
+                continue
 
             df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
@@ -64,12 +60,9 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
             if float(last["RSI"]) > 55:
                 reasons.append(f"RSI Strong ({round(last['RSI'], 1)})")
 
-            rolling_high_series = df["High"].rolling(10).max()
-            if len(rolling_high_series) >= 2:
-                prev_rolling_high = rolling_high_series.iloc[-2]
-                if pd.notna(prev_rolling_high):
-                    if float(last["Close"]) > float(prev_rolling_high):
-                        reasons.append("10-Bar High Breakout")
+            rolling_high = df["High"].rolling(10).max()
+            if len(rolling_high) >= 2 and float(last["Close"]) > float(rolling_high.iloc[-2]):
+                reasons.append("10-Bar High Breakout")
 
             trend_type = "BTST Setup" if timeframe == "1d" else "Intraday Setup"
             if len(reasons) >= min_conditions:
@@ -86,7 +79,7 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
                 skipped_stocks.append({"Stock": symbol, "Reason": ", ".join(reasons)})
 
         except Exception as e:
-            scan_logs.append(f"⚠️ {symbol}: {e}")
+            scan_logs.append(f"⚠️ {symbol}: {str(e)}")
             continue
 
     if not test_mode:
@@ -95,20 +88,20 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
 
     return btst_stocks
 
-# Streamlit UI
+# -------------------- STREAMLIT UI --------------------
 st.set_page_config(page_title="Stock Scanner", layout="wide")
 st.title("📈 BTST & Intraday Stock Scanner")
 
-# Input file
+# Load FNO stock list from text file
 with open("data/fno_stock_list.txt") as f:
     stock_list = [line.strip() for line in f if line.strip()]
 
-# Select timeframe
+# Timeframe selection (with 5m support)
 timeframe = st.selectbox("Select Timeframe", ["5m", "15m", "1h", "1d"], index=0)
 
-# Scan button
+# Scan trigger
 if st.button("🔍 Scan Stocks"):
-    with st.spinner("Scanning, please wait..."):
+    with st.spinner("Scanning stocks, please wait..."):
         results = fetch_btst_candidates(stock_list, timeframe=timeframe, test_mode=False)
 
     if results:
@@ -118,12 +111,10 @@ if st.button("🔍 Scan Stocks"):
         st.warning("⚠️ No stock met the criteria.")
 
     if "scan_logs" in st.session_state:
-        with st.expander("View Logs"):
+        with st.expander("⚙️ Scan Logs"):
             for log in st.session_state["scan_logs"]:
                 st.text(log)
 
     if "skipped_stocks" in st.session_state and st.session_state["skipped_stocks"]:
-        with st.expander("Skipped Stocks"):
-            skipped = st.session_state["skipped_stocks"]
-            df_skipped = pd.DataFrame(skipped)
-            st.dataframe(df_skipped)
+        with st.expander("🚫 Skipped Stocks"):
+            st.dataframe(pd.DataFrame(st.session_state["skipped_stocks"]))
