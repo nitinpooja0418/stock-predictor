@@ -20,6 +20,14 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
             
             df = yf.download(symbol + ".NS", period=period, interval=timeframe, progress=False)
 
+            # Ensure all columns are 1D Series
+            for col in ["Close", "Volume", "High"]:
+                if isinstance(df[col], pd.DataFrame):
+                    df[col] = df[col].squeeze()
+                elif hasattr(df[col], "values") and df[col].values.ndim > 1:
+                    df[col] = pd.Series(df[col].values.flatten(), index=df.index)
+
+
             if df.empty or len(df) < 30:
                 scan_logs.append(f"{symbol}: Insufficient data")
                 continue
