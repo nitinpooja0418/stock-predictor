@@ -38,8 +38,8 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=2, test_mo
             if last["Close"] > last["EMA20"]:
                 reasons.append("Above EMA20")
 
-            if last["Volume"] > prev["Volume"] * 1.5:
-                reasons.append("Volume Spike")
+      #      if last["Volume"] > prev["Volume"] * 1.5:
+      #          reasons.append("Volume Spike")
 
             if last["RSI"] > 55:
                 reasons.append("RSI > 55")
