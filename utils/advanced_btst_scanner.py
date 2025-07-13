@@ -1,50 +1,49 @@
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
+from ta.trend import EMAIndicator
+from ta.momentum import RSIIndicator
 
-def fetch_btst_candidates(fno_stocks):
-    btst_candidates = []
+def fetch_btst_candidates(stock_list):
+    btst_stocks = []
 
-    for symbol in fno_stocks:
-        print(f"Processing: {symbol}")
-        print(ta.ema(df["Close"], length=20).shape)
-
+    for symbol in stock_list:
         try:
-            df = yf.download(f"{symbol}.NS", period="5d", interval="15m", progress=False)
-            if df.empty or "Close" not in df.columns:
-                print(f"Skipping {symbol} — No data.")
+            df = yf.download(symbol + ".NS", period="5d", interval="15m", progress=False)
+
+            if df.empty or len(df) < 20:
                 continue
 
             df.dropna(inplace=True)
+            df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
+            df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
 
-            df["EMA20"] = ta.ema(df["Close"], length=20).squeeze()
-            df["EMA50"] = ta.ema(df["Close"], length=50).squeeze()
-            df["RSI"] = ta.rsi(df["Close"], length=14).squeeze()
-            df["Volume_SMA20"] = df["Volume"].rolling(window=20).mean()
-
+            # Detect potential breakout
             last = df.iloc[-1]
             prev = df.iloc[-2]
+            reason = []
 
-            reasons = []
+            if last["Close"] > last["EMA20"] and last["Volume"] > prev["Volume"] * 1.5:
+                reason.append("Breakout Above EMA20 + Volume Spike")
 
-            if last["Close"] > last["EMA20"]:
-                reasons.append("Above 20 EMA")
-            if last["Volume"] > 1.2 * last["Volume_SMA20"]:
-                reasons.append("Volume Spike")
-            if last["RSI"] > 55:
-                reasons.append("RSI > 55")
-            if last["Close"] > prev["High"]:
-                reasons.append("Breakout Candle")
+            if last["RSI"] > 60:
+                reason.append("Strong RSI")
 
-            # Final filter: at least 3 confirmations
-            if len(reasons) >= 3:
-                btst_candidates.append({
-                    "symbol": symbol,
-                    "reasons": ", ".join(reasons)
+            if last["Close"] > df["High"].rolling(10).max().iloc[-2]:
+                reason.append("High Breakout")
+
+            if len(reason) >= 2:
+                btst_stocks.append({
+                    "Stock": symbol,
+                    "Close": round(last["Close"], 2),
+                    "Trend": "BTST Setup",
+                    "Confidence": f"{len(reason)}/5",
+                    "Reason": ", ".join(reason),
+                    "LTP": round(last["Close"], 2),
+                    "TradingView": f"https://in.tradingview.com/symbols/NSE-{symbol}/"
                 })
 
         except Exception as e:
-            print(f"⚠️ Error processing {symbol}: {e}")
+            print(f"Error with {symbol}: {e}")
             continue
 
-    return btst_candidates
+    return btst_stocks
