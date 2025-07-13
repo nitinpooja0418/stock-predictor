@@ -4,15 +4,13 @@ from ta.trend import EMAIndicator, MACD
 from ta.momentum import RSIIndicator
 
 def fetch_btst_candidates(stock_list, timeframe="15m"):
-    print(f"📌 DEBUG: fetch_btst_candidates() called with timeframe = {timeframe}")
     btst_stocks = []
 
-    # Map UI-friendly timeframe to yfinance format
+    # Map from UI label to yfinance arguments
     tf_map = {
         "5m": ("5d", "5m"),
         "15m": ("5d", "15m"),
-        "Daily": ("3mo", "1d"),
-        "1d": ("3mo", "1d")
+        "Daily": ("3mo", "1d")
     }
 
     period, interval = tf_map.get(timeframe, ("5d", "15m"))
@@ -32,16 +30,12 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
 
             df.dropna(inplace=True)
 
-            # Ensure Close is 1D
-            if isinstance(df["Close"], pd.DataFrame):
-                df["Close"] = df["Close"].squeeze()
-
             # Indicators
             df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
-            macd_obj = MACD(close=df["Close"])
-            df["MACD"] = macd_obj.macd()
-            df["MACD_Signal"] = macd_obj.macd_signal()
+            macd = MACD(close=df["Close"])
+            df["MACD"] = macd.macd()
+            df["MACD_Signal"] = macd.macd_signal()
 
             df.dropna(inplace=True)
             if len(df) < 2:
@@ -51,15 +45,19 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
             prev = df.iloc[-2]
             reason = []
 
+            # Condition 1: EMA20 + Volume Spike
             if last["Close"] > last["EMA20"] and last["Volume"] > prev["Volume"] * 1.5:
                 reason.append("Breakout Above EMA20 + Volume Spike")
 
+            # Condition 2: RSI > 60
             if last["RSI"] > 60:
                 reason.append("Strong RSI")
 
+            # Condition 3: High Breakout
             if last["Close"] > df["High"].rolling(10).max().iloc[-2]:
                 reason.append("High Breakout")
 
+            # Condition 4: MACD Bullish Crossover
             if last["MACD"] > last["MACD_Signal"]:
                 reason.append("MACD Bullish Crossover")
 
