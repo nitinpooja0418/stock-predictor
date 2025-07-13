@@ -20,14 +20,25 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
             df.dropna(inplace=True)
 
             required_cols = ["Close", "Volume", "High"]
+            skip_due_to_column = False
             for col in required_cols:
                 if col not in df.columns:
                     scan_logs.append(f"❌ Error with {symbol}: Missing {col} column")
-                    continue
+                    skip_due_to_column = True
+                    break
+                # Ensure column is 1D series
                 if isinstance(df[col], pd.DataFrame):
                     df[col] = df[col].squeeze()
-                elif hasattr(df[col], "values") and df[col].values.ndim > 1:
+                if hasattr(df[col], "values") and df[col].values.ndim > 1:
                     df[col] = pd.Series(df[col].values.flatten(), index=df.index)
+            
+                if df[col].ndim != 1:
+                    scan_logs.append(f"❌ Error with {symbol}: {col} column is not 1D even after flattening")
+                    skip_due_to_column = True
+                    break
+                if skip_due_to_column:
+                    continue
+
 
             df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
