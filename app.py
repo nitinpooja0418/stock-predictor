@@ -14,11 +14,8 @@ st.title("📈 AI Stock Trend & BTST Dashboard")
 # -------------------------------
 timeframe = st.selectbox("⏱️ Select Timeframe", ["5m", "15m", "Daily"])
 filter_option = st.selectbox("📊 Filter by Confidence / Trend", [
-    "All", "Only 5/5", "4/5+", "BTST Setup"
+    "All", "Only 4/4", "3/4+", "BTST Setup"
 ])
-
-with st.spinner("🔍 Scanning F&O stocks for BTST/trending setups..."):
-    btst_data = fetch_btst_candidates(fno_stocks, timeframe=timeframe)
 
 # -------------------------------
 # Get F&O Stock List
@@ -31,22 +28,31 @@ if not fno_stocks:
     st.stop()
 
 # -------------------------------
+# BTST Candidates Section
+# -------------------------------
+st.markdown("---")
+st.subheader("📊 BTST Stock Candidates (High Accuracy)")
+
+with st.spinner("🔍 Scanning F&O stocks for BTST setups..."):
+    btst_data = fetch_btst_candidates(fno_stocks, timeframe=timeframe)
+
+# -------------------------------
 # Trending Stock Table
 # -------------------------------
 st.markdown("## 🔥 Trending Stocks (Breakout / Breakdown)")
 
 try:
-    trending_data = fetch_btst_candidates(fno_stocks)
+    filtered_data = btst_data.copy()
 
-    if filter_option == "Only 5/5":
-        trending_data = [s for s in trending_data if s.get("Confidence", "").startswith("5")]
-    elif filter_option == "4/5+":
-        trending_data = [s for s in trending_data if s.get("Confidence", "").startswith(("4", "5"))]
+    if filter_option == "Only 4/4":
+        filtered_data = [s for s in filtered_data if s.get("Confidence") == "4/4"]
+    elif filter_option == "3/4+":
+        filtered_data = [s for s in filtered_data if s.get("Confidence", "").startswith(("3", "4"))]
     elif filter_option == "BTST Setup":
-        trending_data = [s for s in trending_data if s.get("Trend") == "BTST Setup"]
+        filtered_data = [s for s in filtered_data if s.get("Trend") == "BTST Setup"]
 
-    if trending_data:
-        render_trending_table(trending_data)
+    if filtered_data:
+        render_trending_table(filtered_data)
     else:
         st.warning("No trending stocks found right now.")
 
@@ -54,17 +60,10 @@ except Exception as e:
     st.error(f"⚠️ Error while scanning trending stocks: {e}")
 
 # -------------------------------
-# BTST Candidates Section
+# Show Raw DataFrame
 # -------------------------------
-st.markdown("---")
-st.subheader("📊 BTST Stock Candidates (High Accuracy)")
-
-with st.spinner("Scanning F&O stocks for BTST setups..."):
-    btst_data = fetch_btst_candidates(fno_stocks)
-
 if btst_data:
     st.success(f"✅ {len(btst_data)} strong BTST candidates found.")
-    btst_df = pd.DataFrame(btst_data)
-    st.dataframe(btst_df)
+    st.dataframe(pd.DataFrame(btst_data))
 else:
     st.info("⚠️ No high-probability BTST candidates found at the moment.")
