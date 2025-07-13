@@ -11,7 +11,14 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
 
     for symbol in stock_list:
         try:
-            df = yf.download(symbol + ".NS", period="5d", interval=timeframe, progress=False)
+            if timeframe in ["5m", "15m"]:
+                period = "7d"
+            elif timeframe == "1h":
+                period = "30d"
+            else:
+                period = "90d"
+            
+            df = yf.download(symbol + ".NS", period=period, interval=timeframe, progress=False)
 
             if df.empty or len(df) < 30:
                 scan_logs.append(f"{symbol}: Insufficient data")
