@@ -38,8 +38,8 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=2, test_mo
             if last["Close"] > last["EMA20"]:
                 reasons.append("Above EMA20")
 
-      #      if last["Volume"] > prev["Volume"] * 1.5:
-      #          reasons.append("Volume Spike")
+       #     if last["Volume"] > prev["Volume"] * 1.5:
+       #         reasons.append("Volume Spike")
 
             if last["RSI"] > 55:
                 reasons.append("RSI > 55")
@@ -74,18 +74,3 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=2, test_mo
         st.session_state["scan_logs"] = scan_logs
 
     return btst_stocks
-
-
-# Show logs after scanning
-if "scan_logs" in st.session_state:
-    with st.expander("🪵 View Scan Logs"):
-        for log in st.session_state["scan_logs"]:
-            st.write(log)
-
-if "skipped_stocks" in st.session_state:
-    skipped_df = pd.DataFrame(st.session_state["skipped_stocks"])
-    if not skipped_df.empty:
-        st.markdown("### ⚠️ Skipped Stocks (Didn’t Meet Criteria)")
-        top_skipped = skipped_df.sort_values(by="RSI", ascending=False).head(10)
-        st.dataframe(top_skipped, use_container_width=True)
-
