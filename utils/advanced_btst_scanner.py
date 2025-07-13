@@ -23,11 +23,15 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
             for col in required_cols:
                 if col not in df.columns:
                     scan_logs.append(f"❌ Error with {symbol}: Missing {col} column")
+                    raise ValueError(f"{symbol}: Missing {col} column")
+                # Flatten any column that is 2D to 1D
+                if isinstance(df[col], pd.Series):
                     continue
-                if isinstance(df[col], pd.DataFrame):
-                    df[col] = df[col].squeeze()
+                elif isinstance(df[col], pd.DataFrame):
+                    df[col] = df[col].iloc[:, 0]
                 elif hasattr(df[col], "values") and df[col].values.ndim > 1:
-                    df[col] = pd.Series(df[col].values.flatten(), index=df.index)
+                    df[col] = pd.Series(df[col].values.ravel(), index=df.index)
+
 
             df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
