@@ -6,7 +6,7 @@ from ta.momentum import RSIIndicator
 def fetch_btst_candidates(stock_list, timeframe="15m"):
     btst_stocks = []
 
-    # Map from UI label to yfinance arguments
+    # Map UI timeframe to yfinance arguments
     tf_map = {
         "5m": ("5d", "5m"),
         "15m": ("5d", "15m"),
@@ -28,16 +28,22 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
             if df.empty or len(df) < 30:
                 continue
 
-            df.dropna(inplace=True)
+            # Ensure required columns are floats and Series
+            df["Close"] = df["Close"].astype(float)
+            df["Volume"] = df["Volume"].astype(float)
 
-            # Indicators
-            df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
-            df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
-            macd = MACD(close=df["Close"])
+            close_series = df["Close"]
+
+            # Add Indicators
+            df["EMA20"] = EMAIndicator(close=close_series, window=20).ema_indicator()
+            df["RSI"] = RSIIndicator(close=close_series, window=14).rsi()
+            macd = MACD(close=close_series)
             df["MACD"] = macd.macd()
             df["MACD_Signal"] = macd.macd_signal()
 
+            # Drop NaN rows after indicators
             df.dropna(inplace=True)
+
             if len(df) < 2:
                 continue
 
@@ -45,19 +51,19 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
             prev = df.iloc[-2]
             reason = []
 
-            # Condition 1: EMA20 + Volume Spike
+            # Signal 1: EMA Breakout + Volume Spike
             if last["Close"] > last["EMA20"] and last["Volume"] > prev["Volume"] * 1.5:
                 reason.append("Breakout Above EMA20 + Volume Spike")
 
-            # Condition 2: RSI > 60
-            if last["RSI"] > 60:
-                reason.append("Strong RSI")
+            # Signal 2: RSI Strength
+            if last["RSI"] > 55:
+                reason.append("Strong RSI (>60)")
 
-            # Condition 3: High Breakout
+            # Signal 3: High Breakout
             if last["Close"] > df["High"].rolling(10).max().iloc[-2]:
                 reason.append("High Breakout")
 
-            # Condition 4: MACD Bullish Crossover
+            # Signal 4: MACD Crossover
             if last["MACD"] > last["MACD_Signal"]:
                 reason.append("MACD Bullish Crossover")
 
