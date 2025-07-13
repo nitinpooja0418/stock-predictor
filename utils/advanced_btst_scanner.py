@@ -25,9 +25,11 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
                 continue
 
             # Indicators
-            df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
-            df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
-            macd = MACD(close=df["Close"])
+            close_series = df["Close"].squeeze() if hasattr(df["Close"], "squeeze") else df["Close"]
+            df["EMA20"] = EMAIndicator(close=close_series, window=20).ema_indicator()
+            df["RSI"] = RSIIndicator(close=close_series, window=14).rsi()
+            
+            macd = MACD(close=close_series)
             df["MACD"] = macd.macd()
             df["MACD_signal"] = macd.macd_signal()
 
