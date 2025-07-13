@@ -24,7 +24,7 @@ except FileNotFoundError:
 # -------------------------------
 col1, col2 = st.columns(2)
 with col1:
-    timeframe = st.selectbox("Select Timeframe", ["15m", "1h", "1d"], index=0)
+    timeframe = st.selectbox("Select Timeframe", ["5","15m", "1h", "1d"], index=0)
 with col2:
     min_conditions = st.slider("Minimum Conditions to Qualify", 2, 5, 3)
 
