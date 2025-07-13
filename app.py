@@ -1,76 +1,39 @@
-import yfinance as yf
-import pandas as pd
-from ta.trend import EMAIndicator, MACD
-from ta.momentum import RSIIndicator
 import streamlit as st
+import pandas as pd
+from utils.advanced_btst_scanner import fetch_btst_candidates
+from utils.nse_fno_scraper import get_fno_stocks  # fallback to .txt handled there
+from component.trending_table import render_trending_table
 
-def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=2, test_mode=False):
-    btst_stocks = []
-    skipped_stocks = []
-    scan_logs = []
+# Streamlit config
+st.set_page_config(page_title="Stock Scanner Dashboard", layout="wide")
+st.title("📈 Intraday & BTST Stock Scanner")
 
-    for symbol in stock_list:
-        try:
-            df = yf.download(symbol + ".NS", period="5d", interval=timeframe, progress=False)
+# Controls
+timeframe = st.selectbox("Select Timeframe", ["5m", "15m", "1h", "1d"], index=1)
+min_cond = st.slider("Minimum Strategy Conditions to Qualify", 1, 5, 2)
 
-            if df.empty or len(df) < 30:
-                scan_logs.append(f"{symbol}: Insufficient data")
-                continue
+# Fetch F&O stock list
+fno_stocks = get_fno_stocks()
+if not fno_stocks:
+    st.error("❌ Failed to load stock list. Check `fno_stock_list.txt` in /data folder.")
+    st.stop()
 
-            df.dropna(inplace=True)
+# Run scan
+with st.spinner("🔍 Scanning stocks..."):
+    result = fetch_btst_candidates(fno_stocks, timeframe=timeframe, min_conditions=min_cond)
 
-            required_cols = ["Close", "Volume", "High"]
-            if not all(col in df.columns for col in required_cols):
-                scan_logs.append(f"❌ Error with {symbol}: {required_cols}")
-                continue
+# Display results
+if result:
+    st.success(f"✅ {len(result)} strong stock setups found.")
+    render_trending_table(result)
+else:
+    st.warning("⚠️ No stock met the criteria.")
+    if "skipped_stocks" in st.session_state:
+        df_skipped = pd.DataFrame(st.session_state["skipped_stocks"]).sort_values("RSI", ascending=False)
+        st.markdown("### 🔍 Top RSI Stocks (Skipped)")
+        st.dataframe(df_skipped.head(10))
 
-            df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
-            df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
-            macd_indicator = MACD(close=df["Close"], window_slow=26, window_fast=12, window_sign=9)
-            df["MACD"] = macd_indicator.macd()
-            df["MACD_signal"] = macd_indicator.macd_signal()
-
-            last = df.iloc[-1]
-            prev = df.iloc[-2]
-
-            reasons = []
-
-            if last["Close"] > last["EMA20"]:
-                reasons.append("Above EMA20")
-
-            if last["Volume"] > prev["Volume"] * 1.5:
-                reasons.append("Volume Spike")
-
-            if last["RSI"] > 55:
-                reasons.append("RSI > 55")
-
-            if last["MACD"] > last["MACD_signal"]:
-                reasons.append("MACD Crossover")
-
-            if last["Close"] > df["High"].rolling(10).max().iloc[-2]:
-                reasons.append("High Breakout")
-
-            if len(reasons) >= min_conditions:
-                trend_type = "BTST Setup" if timeframe in ["15m", "1d"] else "Intraday Setup"
-                btst_stocks.append({
-                    "Stock": symbol,
-                    "Close": round(last["Close"], 2),
-                    "Trend": trend_type,
-                    "Confidence": f"{len(reasons)}/5",
-                    "Reason": ", ".join(reasons),
-                    "LTP": round(last["Close"], 2),
-                    "RSI": round(last["RSI"], 2),
-                    "TradingView": f"https://in.tradingview.com/symbols/NSE-{symbol}/"
-                })
-            else:
-                skipped_stocks.append({"Stock": symbol, "RSI": round(last.get("RSI", 0), 2)})
-
-        except Exception as e:
-            scan_logs.append(f"⚠️ {symbol}: {e}")
-            continue
-
-    if not test_mode:
-        st.session_state["skipped_stocks"] = skipped_stocks
-        st.session_state["scan_logs"] = scan_logs
-
-    return btst_stocks
+# Show logs
+if "scan_logs" in st.session_state and st.checkbox("📄 Show Detailed Scan Logs"):
+    st.markdown("### Debug Logs")
+    st.text("\n".join(st.session_state["scan_logs"]))
