@@ -1,65 +1,76 @@
-import streamlit as st
+import yfinance as yf
 import pandas as pd
-from utils.nse_fno_scraper import get_fno_stocks
-from utils.advanced_btst_scanner import fetch_btst_candidates
-from component.trending_table import render_trending_table
+from ta.trend import EMAIndicator, MACD
+from ta.momentum import RSIIndicator
+import streamlit as st
 
-# Page setup
-st.set_page_config(page_title="Stock Trend Dashboard", layout="wide")
-st.title("📈 AI Stock Trend & BTST Dashboard")
+def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=2, test_mode=False):
+    btst_stocks = []
+    skipped_stocks = []
+    scan_logs = []
 
-# -------------------------------
-# UI Controls
-# -------------------------------
-timeframe = st.selectbox("⏱️ Select Timeframe", ["5m", "15m", "1h", "1d"], index=1)
-
-scan_type = st.radio("🧠 Select Strategy Type", ["BTST", "Intraday"], horizontal=True)
-
-filter_option = st.selectbox("📊 Filter by Confidence / Trend", [
-    "All", "Only 5/5", "4/5+", "BTST Setup", "Intraday Setup"
-])
-
-single_stock = st.text_input("🔍 Enter single stock symbol (optional)", placeholder="e.g. RELIANCE")
-
-# -------------------------------
-# Run Scanner
-# -------------------------------
-if st.button("🚀 Run Scanner"):
-    with st.spinner("🔍 Scanning stock(s) for potential setup..."):
-
-        if single_stock:
-            stock_list = [single_stock.upper()]
-            test_mode = True
-        else:
-            fno_stocks = get_fno_stocks()
-            if not fno_stocks:
-                st.error("❌ Failed to load F&O stock list.")
-                st.stop()
-            stock_list = fno_stocks
-            test_mode = False
-
+    for symbol in stock_list:
         try:
-            btst_data = fetch_btst_candidates(
-                stock_list,
-                timeframe=timeframe,
-                test_mode=test_mode
-            )
+            df = yf.download(symbol + ".NS", period="5d", interval=timeframe, progress=False)
 
-            # Filter logic
-            if filter_option == "Only 5/5":
-                btst_data = [s for s in btst_data if s.get("Confidence", "").startswith("5")]
-            elif filter_option == "4/5+":
-                btst_data = [s for s in btst_data if s.get("Confidence", "").startswith(("4", "5"))]
-            elif filter_option == "BTST Setup":
-                btst_data = [s for s in btst_data if s.get("Trend") == "BTST Setup"]
-            elif filter_option == "Intraday Setup":
-                btst_data = [s for s in btst_data if s.get("Trend") == "Intraday Setup"]
+            if df.empty or len(df) < 30:
+                scan_logs.append(f"{symbol}: Insufficient data")
+                continue
 
-            if btst_data:
-                st.success(f"✅ {len(btst_data)} stock(s) found with valid {scan_type} setup.")
-                render_trending_table(btst_data)
+            df.dropna(inplace=True)
+
+            required_cols = ["Close", "Volume", "High"]
+            if not all(col in df.columns for col in required_cols):
+                scan_logs.append(f"❌ Error with {symbol}: {required_cols}")
+                continue
+
+            df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
+            df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
+            macd_indicator = MACD(close=df["Close"], window_slow=26, window_fast=12, window_sign=9)
+            df["MACD"] = macd_indicator.macd()
+            df["MACD_signal"] = macd_indicator.macd_signal()
+
+            last = df.iloc[-1]
+            prev = df.iloc[-2]
+
+            reasons = []
+
+            if last["Close"] > last["EMA20"]:
+                reasons.append("Above EMA20")
+
+            if last["Volume"] > prev["Volume"] * 1.5:
+                reasons.append("Volume Spike")
+
+            if last["RSI"] > 55:
+                reasons.append("RSI > 55")
+
+            if last["MACD"] > last["MACD_signal"]:
+                reasons.append("MACD Crossover")
+
+            if last["Close"] > df["High"].rolling(10).max().iloc[-2]:
+                reasons.append("High Breakout")
+
+            if len(reasons) >= min_conditions:
+                trend_type = "BTST Setup" if timeframe in ["15m", "1d"] else "Intraday Setup"
+                btst_stocks.append({
+                    "Stock": symbol,
+                    "Close": round(last["Close"], 2),
+                    "Trend": trend_type,
+                    "Confidence": f"{len(reasons)}/5",
+                    "Reason": ", ".join(reasons),
+                    "LTP": round(last["Close"], 2),
+                    "RSI": round(last["RSI"], 2),
+                    "TradingView": f"https://in.tradingview.com/symbols/NSE-{symbol}/"
+                })
             else:
-                st.warning(f"No valid {scan_type} setups found.")
+                skipped_stocks.append({"Stock": symbol, "RSI": round(last.get("RSI", 0), 2)})
 
         except Exception as e:
-            st.error(f"⚠️ Error during scanning: {e}")
+            scan_logs.append(f"⚠️ {symbol}: {e}")
+            continue
+
+    if not test_mode:
+        st.session_state["skipped_stocks"] = skipped_stocks
+        st.session_state["scan_logs"] = scan_logs
+
+    return btst_stocks
