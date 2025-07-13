@@ -5,6 +5,9 @@ from utils.nse_fno_scraper import get_fno_stocks
 from utils.advanced_btst_scanner import fetch_btst_candidates
 from component.trending_table import render_trending_table
 
+results = fetch_btst_candidates(["RELIANCE"], timeframe="15m")
+print(results)
+
 # Page setup
 st.set_page_config(page_title="Stock Trend Dashboard", layout="wide")
 st.title("📈 AI Stock Trend & BTST Dashboard")
