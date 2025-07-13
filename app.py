@@ -42,8 +42,7 @@ if st.button("🚀 Run Scanner"):
             btst_data = fetch_btst_candidates(
                 stock_list,
                 timeframe=timeframe,
-                test_mode=test_mode,
-                scan_type=scan_type
+                test_mode=test_mode
             )
 
             # Filter logic
