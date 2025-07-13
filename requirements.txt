@@ -6,7 +6,6 @@ scikit-learn
 beautifulsoup4
 requests
 setuptools
-pandas_ta=0.3.14
 squeeze-momentum-indicator
 ta
 matplotlib
