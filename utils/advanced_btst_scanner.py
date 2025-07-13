@@ -24,6 +24,7 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
                 scan_logs.append(f"❌ Error with {symbol}: Missing required columns")
                 continue
 
+            df.dropna(inplace=True)
             # Ensure columns are 1D
             df["Close"] = df["Close"].squeeze()
             df["Volume"] = df["Volume"].squeeze()
