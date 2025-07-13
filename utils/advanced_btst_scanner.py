@@ -6,15 +6,14 @@ from ta.momentum import RSIIndicator
 def fetch_btst_candidates(stock_list, timeframe="15m"):
     btst_stocks = []
 
-    # Map Streamlit timeframes to yfinance-compatible intervals
+    # Map UI-friendly timeframe to yfinance format
     tf_map = {
         "5m": ("5d", "5m"),
         "15m": ("5d", "15m"),
         "Daily": ("3mo", "1d"),
-        "1d": ("3mo", "1d")  # alias
+        "1d": ("3mo", "1d")
     }
 
-    df["Close"] = df["Close"].squeeze()
     period, interval = tf_map.get(timeframe, ("5d", "15m"))
 
     for symbol in stock_list:
@@ -32,14 +31,13 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
 
             df.dropna(inplace=True)
 
-            # Ensure 'Close' is 1D
+            # Ensure Close is 1D
             if isinstance(df["Close"], pd.DataFrame):
                 df["Close"] = df["Close"].squeeze()
 
             # Indicators
             df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
-
             macd_obj = MACD(close=df["Close"])
             df["MACD"] = macd_obj.macd()
             df["MACD_Signal"] = macd_obj.macd_signal()
@@ -52,7 +50,6 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
             prev = df.iloc[-2]
             reason = []
 
-            # BTST / Breakout Logic
             if last["Close"] > last["EMA20"] and last["Volume"] > prev["Volume"] * 1.5:
                 reason.append("Breakout Above EMA20 + Volume Spike")
 
@@ -65,7 +62,6 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
             if last["MACD"] > last["MACD_Signal"]:
                 reason.append("MACD Bullish Crossover")
 
-            # Decide if stock qualifies
             if len(reason) >= 2:
                 btst_stocks.append({
                     "Stock": symbol,
