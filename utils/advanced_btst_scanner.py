@@ -11,22 +11,7 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
 
     for symbol in stock_list:
         try:
-            if timeframe in ["5m", "15m"]:
-                period = "7d"
-            elif timeframe == "1h":
-                period = "30d"
-            else:
-                period = "90d"
-            
-            df = yf.download(symbol + ".NS", period=period, interval=timeframe, progress=False)
-
-            # Ensure all columns are 1D Series
-            for col in ["Close", "Volume", "High"]:
-                if isinstance(df[col], pd.DataFrame):
-                    df[col] = df[col].squeeze()
-                elif hasattr(df[col], "values") and df[col].values.ndim > 1:
-                    df[col] = pd.Series(df[col].values.flatten(), index=df.index)
-
+            df = yf.download(symbol + ".NS", period="5d", interval=timeframe, progress=False)
 
             if df.empty or len(df) < 30:
                 scan_logs.append(f"{symbol}: Insufficient data")
@@ -35,16 +20,15 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
             df.dropna(inplace=True)
 
             required_cols = ["Close", "Volume", "High"]
-            if not all(col in df.columns for col in required_cols):
-                scan_logs.append(f"❌ Error with {symbol}: Missing required columns")
-                continue
-
-            # Ensure all columns are 1D Series
             for col in required_cols:
+                if col not in df.columns:
+                    scan_logs.append(f"❌ Error with {symbol}: Missing {col} column")
+                    continue
                 if isinstance(df[col], pd.DataFrame):
                     df[col] = df[col].squeeze()
+                elif hasattr(df[col], "values") and df[col].values.ndim > 1:
+                    df[col] = pd.Series(df[col].values.flatten(), index=df.index)
 
-            # Indicators
             df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
             macd = MACD(close=df["Close"])
@@ -56,7 +40,6 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
 
             reasons = []
 
-            # Conditions
             if float(last["Close"]) > float(last["EMA20"]):
                 reasons.append("Above EMA20")
 
@@ -70,18 +53,14 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
             if float(last["RSI"]) > 55:
                 reasons.append(f"RSI Strong ({round(last['RSI'], 1)})")
 
-            try:
-                rolling_high_series = df["High"].rolling(10).max()
-                if len(rolling_high_series) >= 2:
-                    prev_rolling_high = rolling_high_series.iloc[-2]
-                    if pd.notna(prev_rolling_high):
-                        if float(last["Close"]) > float(prev_rolling_high):
-                            reasons.append("10-Bar High Breakout")
-            except Exception as e:
-                scan_logs.append(f"⚠️ {symbol}: High breakout check error: {e}")
+            rolling_high_series = df["High"].rolling(10).max()
+            if len(rolling_high_series) >= 2:
+                prev_rolling_high = rolling_high_series.iloc[-2]
+                if pd.notna(prev_rolling_high):
+                    if float(last["Close"]) > float(prev_rolling_high):
+                        reasons.append("10-Bar High Breakout")
 
-            # Decision
-            trend_type = "BTST Setup" if timeframe in ["1d"] else "Intraday Setup"
+            trend_type = "BTST Setup" if timeframe == "1d" else "Intraday Setup"
             if len(reasons) >= min_conditions:
                 btst_stocks.append({
                     "Stock": symbol,
@@ -136,6 +115,4 @@ if st.button("🔍 Scan Stocks"):
         with st.expander("Skipped Stocks"):
             skipped = st.session_state["skipped_stocks"]
             df_skipped = pd.DataFrame(skipped)
-            if "RSI" in df_skipped.columns:
-                df_skipped = df_skipped.sort_values(by="RSI", ascending=False)
             st.dataframe(df_skipped)
