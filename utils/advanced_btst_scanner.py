@@ -3,7 +3,6 @@ import pandas as pd
 from ta.trend import EMAIndicator, MACD
 from ta.momentum import RSIIndicator
 import streamlit as st
-import time
 
 def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mode=False):
     btst_stocks = []
@@ -12,32 +11,29 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
 
     for symbol in stock_list:
         try:
-            period = "10d" if timeframe in ["15m", "1h"] else "6mo"
-            df = yf.download(symbol + ".NS", period=period, interval=timeframe, progress=False)
-
-            time.sleep(0.3)  # prevent rate-limiting
+            df = yf.download(symbol + ".NS", period="5d", interval=timeframe, progress=False)
 
             if df.empty or len(df) < 30:
                 scan_logs.append(f"{symbol}: Insufficient data")
                 continue
 
-            df = df.copy()
             df.dropna(inplace=True)
 
-            # Ensure 1D columns
-            for col in ["Close", "Volume", "High"]:
-                if isinstance(df[col].iloc[0], (list, tuple, pd.Series, pd.DataFrame)):
-                    df[col] = df[col].squeeze()
-
-            # Validate required columns
-            if not all(col in df.columns for col in ["Close", "Volume", "High"]):
-                scan_logs.append(f"❌ {symbol}: Missing required columns")
+            required_cols = ["Close", "Volume", "High"]
+            if not all(col in df.columns for col in required_cols):
+                scan_logs.append(f"❌ Error with {symbol}: Missing required columns")
                 continue
 
+            # Ensure columns are 1D
+            df["Close"] = df["Close"].squeeze()
+            df["Volume"] = df["Volume"].squeeze()
+            df["High"] = df["High"].squeeze()
+
             # Indicators
-            df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
-            df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
-            macd = MACD(close=df["Close"])
+            close_series = df["Close"]
+            df["EMA20"] = EMAIndicator(close=close_series, window=20).ema_indicator()
+            df["RSI"] = RSIIndicator(close=close_series, window=14).rsi()
+            macd = MACD(close=close_series)
             df["MACD"] = macd.macd()
             df["MACD_signal"] = macd.macd_signal()
 
@@ -46,27 +42,36 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
 
             reasons = []
 
-            if last["Close"] > last["EMA20"]:
+            # Conditions
+            if float(last["Close"]) > float(last["EMA20"]):
                 reasons.append("Above EMA20")
-            if last["Volume"] > prev["Volume"] * 1.5:
+
+            if float(last["Volume"]) > float(prev["Volume"]) * 1.5:
                 reasons.append("Volume Spike")
-            if last["MACD"] > last["MACD_signal"]:
+
+            if float(last["MACD"]) > float(last["MACD_signal"]):
                 reasons.append("MACD Bullish Crossover")
-            if last["RSI"] > 55:
+
+            if float(last["RSI"]) > 55:
                 reasons.append(f"RSI Strong ({round(last['RSI'], 1)})")
 
             try:
-                prev_high = df["High"].rolling(10).max().iloc[-2]
-                if pd.notna(prev_high) and last["Close"] > prev_high:
-                    reasons.append("10-Bar High Breakout")
+                rolling_high_series = df["High"].rolling(10).max()
+                if len(rolling_high_series) >= 2:
+                    prev_rolling_high = rolling_high_series.iloc[-2]
+                    if pd.notna(prev_rolling_high):
+                        if float(last["Close"]) > float(prev_rolling_high):
+                            reasons.append("10-Bar High Breakout")
             except Exception as e:
-                scan_logs.append(f"{symbol}: High breakout error - {e}")
+                scan_logs.append(f"⚠️ {symbol}: High breakout check error: {e}")
 
+            # Decision
             if len(reasons) >= min_conditions:
+                trend_type = "BTST Setup" if timeframe in ["15m", "1d"] else "Intraday Setup"
                 btst_stocks.append({
                     "Stock": symbol,
                     "Close": round(last["Close"], 2),
-                    "Trend": "BTST Setup" if timeframe in ["15m", "1d"] else "Intraday Setup",
+                    "Trend": trend_type,
                     "Confidence": f"{len(reasons)}/5",
                     "Reason": ", ".join(reasons),
                     "LTP": round(last["Close"], 2),
