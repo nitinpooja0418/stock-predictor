@@ -1,56 +1,66 @@
-def fetch_btst_candidates(stock_list, timeframe="15m", test_mode=False, scan_type="BTST"):
+import yfinance as yf
+import pandas as pd
+from ta.trend import EMAIndicator, MACD
+from ta.momentum import RSIIndicator
+
+def fetch_btst_candidates(stock_list, timeframe="15m"):
     btst_stocks = []
+
+    # Set period based on timeframe
+    if timeframe == "5m":
+        period = "2d"
+    elif timeframe == "15m":
+        period = "5d"
+    else:  # "1d" or "daily"
+        timeframe = "1d"
+        period = "30d"
 
     for symbol in stock_list:
         try:
-            df = yf.download(f"{symbol}.NS", period="5d", interval=timeframe, progress=False)
+            df = yf.download(symbol + ".NS", period=period, interval=timeframe, progress=False)
 
+            # Skip if data is missing or too short
             if df.empty or len(df) < 20:
                 continue
 
-            required_cols = ['Close', 'High', 'Volume']
-            if not all(col in df.columns for col in required_cols):
-                print(f"❌ Error with {symbol}: Missing columns {required_cols}")
-                continue
+            df = df[["Close", "Volume", "High"]].dropna()
 
-            df.dropna(subset=required_cols, inplace=True)
+            # Ensure all required columns are present and 1D
+            for col in ["Close", "Volume", "High"]:
+                if col not in df.columns or df[col].ndim != 1:
+                    raise ValueError(f"{symbol}: Missing or invalid column - {col}")
 
             # Indicators
             df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
             macd = MACD(close=df["Close"])
-            df["MACD"] = macd.macd_diff()
+            df["MACD_diff"] = macd.macd_diff()
 
             last = df.iloc[-1]
             prev = df.iloc[-2]
-
             reason = []
 
-            # Common condition
+            # Rule 1: Above EMA with volume spike
             if last["Close"] > last["EMA20"] and last["Volume"] > prev["Volume"] * 1.5:
-                reason.append("Above EMA20 + Volume Spike")
+                reason.append("Breakout Above EMA + Volume Spike")
 
-            if scan_type == "BTST":
-                if last["RSI"] > 60:
-                    reason.append("Strong RSI")
-                if last["Close"] > df["High"].rolling(10).max().iloc[-2]:
-                    reason.append("10-Bar High Breakout")
-                if last["MACD"] > 0:
-                    reason.append("MACD Bullish Crossover")
+            # Rule 2: RSI strong
+            if last["RSI"] > 60:
+                reason.append("Strong RSI")
 
-            elif scan_type == "Intraday":
-                if last["RSI"] > 65:
-                    reason.append("Overbought RSI (Momentum)")
-                if last["MACD"] > 0 and prev["MACD"] < 0:
-                    reason.append("MACD Crossover Just Happened")
-                if last["Close"] > df["High"].rolling(5).mean().iloc[-2]:
-                    reason.append("Above 5-bar avg high")
+            # Rule 3: High breakout
+            if last["Close"] > df["High"].rolling(10).max().iloc[-2]:
+                reason.append("High Breakout")
+
+            # Rule 4: MACD crossover
+            if last["MACD_diff"] > 0 and prev["MACD_diff"] <= 0:
+                reason.append("MACD Bullish Crossover")
 
             if len(reason) >= 2:
                 btst_stocks.append({
                     "Stock": symbol,
                     "Close": round(last["Close"], 2),
-                    "Trend": f"{scan_type} Setup",
+                    "Trend": "BTST Setup" if timeframe == "1d" else "Intraday Setup",
                     "Confidence": f"{len(reason)}/5",
                     "Reason": ", ".join(reason),
                     "LTP": round(last["Close"], 2),
