@@ -39,20 +39,21 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
             reasons = []
 
             # Core bullish conditions
-            if last["Close"] > last["EMA20"]:
-                reasons.append("Above EMA20")
-
-            if last["Volume"] > prev["Volume"] * 1.5:
+            if float(last["Close"]) > float(last["EMA20"]):
+            reasons.append("Above EMA20")
+        
+            if float(last["Volume"]) > float(prev["Volume"]) * 1.5:
                 reasons.append("Volume Spike")
-
-            if last["MACD"] > last["MACD_signal"]:
+            
+            if float(last["MACD"]) > float(last["MACD_signal"]):
                 reasons.append("MACD Bullish Crossover")
-
-            if last["RSI"] > 55:
+            
+            if float(last["RSI"]) > 55:
                 reasons.append(f"RSI Strong ({round(last['RSI'], 1)})")
-
-            if last["Close"] > df["High"].rolling(10).max().iloc[-2]:
-                reasons.append("10-Bar High Breakout")
+            
+            rolling_high = df["High"].rolling(10).max()
+            if not rolling_high.isna().iloc[-2] and float(last["Close"]) > float(rolling_high.iloc[-2]):
+            reasons.append("10-Bar High Breakout")
 
             # Final decision
             if len(reasons) >= min_conditions:
