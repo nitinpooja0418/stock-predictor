@@ -24,6 +24,11 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
                 scan_logs.append(f"❌ Error with {symbol}: Missing required columns")
                 continue
 
+            # Ensure all columns are 1D Series
+            for col in required_cols:
+                if isinstance(df[col], pd.DataFrame):
+                    df[col] = df[col].squeeze()
+
             # Indicators
             df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
@@ -40,8 +45,9 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
             if float(last["Close"]) > float(last["EMA20"]):
                 reasons.append("Above EMA20")
 
-            if float(last["Volume"]) > float(prev["Volume"]) * 1.5:
-                reasons.append("Volume Spike")
+            if pd.notna(last["Volume"]) and pd.notna(prev["Volume"]):
+                if float(last["Volume"]) > float(prev["Volume"]) * 1.5:
+                    reasons.append("Volume Spike")
 
             if float(last["MACD"]) > float(last["MACD_signal"]):
                 reasons.append("MACD Bullish Crossover")
