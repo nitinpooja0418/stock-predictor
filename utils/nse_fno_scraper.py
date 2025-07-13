@@ -1,35 +1,34 @@
-import streamlit as st
-import requests
-import time
 import os
+import requests
 
-@st.cache_data(ttl=3600)
+# Path to your offline stock list
+FNO_FILE_PATH = os.path.join("data", "fno_stock_list.txt")
+
 def get_fno_stocks():
     try:
-        url = "https://www.nseindia.com/api/liveEquity-derivatives?index=stock_fut"
+        # Attempt to fetch live F&O stocks from NSE API
+        url = "https://www.nseindia.com/api/liveEquity-derivatives"
         headers = {
             "User-Agent": "Mozilla/5.0",
-            "Referer": "https://www.nseindia.com/"
+            "Referer": "https://www.nseindia.com"
         }
 
-        session = requests.Session()
-        session.headers.update(headers)
-        session.get("https://www.nseindia.com", timeout=5)
-        time.sleep(1)
+        with requests.Session() as s:
+            s.headers.update(headers)
+            response = s.get(url, timeout=5)
+            data = response.json()
 
-        response = session.get(url, timeout=5)
-        data = response.json()
-
-        stocks = [row["symbol"] for row in data["data"] if row.get("symbol")]
-        return sorted(list(set(stocks)))
+            symbols = list(set(item["symbol"] for item in data["data"]))
+            if symbols:
+                return sorted(symbols)
 
     except Exception as e:
-        print(f"⚠️ NSE fetch error: {e}")
-        # Fallback to local stock list
-        try:
-            with open("data/fno_stock_list.txt", "r") as file:
-                fallback_stocks = [line.strip() for line in file if line.strip()]
-                return fallback_stocks
-        except Exception as fe:
-            print(f"⚠️ Fallback failed: {fe}")
-            return []
+        print(f"[Fallback] Using offline F&O stock list. Error: {e}")
+
+    # Load from fallback text file
+    if os.path.exists(FNO_FILE_PATH):
+        with open(FNO_FILE_PATH, "r") as f:
+            return sorted(list(set(line.strip().upper() for line in f if line.strip())))
+    else:
+        print("❌ Offline F&O file not found at data/fno_stock_list.txt")
+        return []
