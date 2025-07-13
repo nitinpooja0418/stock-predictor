@@ -26,15 +26,17 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
                     scan_logs.append(f"⚠️ {symbol}: Missing {col} column")
                     malformed = True
                     break
-                col_values = df[col].values
-                if col_values.ndim > 1:
-                    df[col] = pd.Series(col_values.flatten(), index=df.index)
-                if df[col].ndim != 1:
-                    scan_logs.append(f"⚠️ {symbol}: {col} is not 1D after flattening")
+                # Forcefully flatten and validate each required column
+                col_values = df[col]
+                if isinstance(col_values, pd.DataFrame) or col_values.ndim > 1:
+                    df[col] = pd.Series(col_values.values.ravel(), index=df.index)
+                
+                if not isinstance(df[col], pd.Series) or df[col].ndim != 1:
+                    scan_logs.append(f"⚠️ {symbol}: {col} is not 1D after forced ravel")
                     malformed = True
                     break
-            if malformed:
-                continue
+                if malformed:
+                    continue
 
             df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
