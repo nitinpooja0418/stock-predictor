@@ -1,62 +1,46 @@
 import streamlit as st
 import pandas as pd
 from utils.advanced_btst_scanner import fetch_btst_candidates
-from component.trending_table import render_trending_table
 
-# Streamlit page config
-st.set_page_config(page_title="📈 Stock Trend & BTST Scanner", layout="wide")
-st.title("📊 AI-Based Stock Scanner (Intraday & BTST)")
+# Load stock list
+with open("data/fno_stock_list.txt") as f:
+    fno_stocks = [line.strip() for line in f if line.strip()]
 
-# UI Elements
-timeframe = st.selectbox("🕒 Timeframe", ["5m", "15m", "1d"], index=1)
-min_conditions = st.slider("🧠 Minimum Conditions to Qualify", 1, 5, 2)
-show_skipped = st.checkbox("🔎 Show Skipped Stocks (Top by RSI)", value=True)
+# Sidebar
+scan_type = st.sidebar.selectbox("Select Scan Type", ["BTST", "Intraday"])
+timeframe = "15m" if scan_type == "BTST" else "5m"
 
-# Load F&O stock list from offline file
-@st.cache_data
-def load_stock_list():
-    try:
-        with open("data/fno_stock_list.txt", "r") as f:
-            return [line.strip().upper() for line in f if line.strip()]
-    except Exception as e:
-        st.error(f"Failed to load stock list: {e}")
-        return []
+st.title("📈 Stock Trend Scanner")
+st.markdown(f"Currently scanning for **{scan_type} setups** using `{timeframe}` timeframe...")
 
-stock_list = load_stock_list()
-
-if not stock_list:
-    st.stop()
-
-# Run the Scanner
-with st.spinner("🚀 Scanning stocks for valid setups..."):
+with st.spinner("🔍 Scanning stocks..."):
     results = fetch_btst_candidates(
-        stock_list, 
-        timeframe=timeframe, 
-        min_conditions=min_conditions,
+        stock_list=fno_stocks,
+        timeframe=timeframe,
+        min_conditions=2,
         test_mode=False
     )
 
-# Display Results
+# Display results
 if results:
-    st.success(f"✅ {len(results)} stocks matched criteria")
-    render_trending_table(results)
+    df = pd.DataFrame(results)
+    df = df.sort_values(by="Confidence", ascending=False)
+    st.success(f"✅ {len(df)} stock(s) found!")
+    st.dataframe(df[["Stock", "LTP", "RSI", "Confidence", "Reason", "Trend", "TradingView"]], use_container_width=True)
 else:
-    st.warning("⚠️ No strong stock setups found. Try lowering minimum conditions or changing timeframe.")
+    st.warning("⚠️ No stock met the criteria.")
 
-# Optional: Show Skipped Stocks Sorted by RSI
-if show_skipped and "skipped_stocks" in st.session_state:
-    skipped = st.session_state["skipped_stocks"]
-    if skipped:
-        df_skipped = pd.DataFrame(skipped)
-        if "RSI" in df_skipped.columns:
-            df_skipped = df_skipped.sort_values("RSI", ascending=False)
-            st.markdown("### 🔍 Top RSI Stocks (Skipped)")
-            st.dataframe(df_skipped.head(10), use_container_width=True)
-        else:
-            st.info("No RSI data available for skipped stocks.")
+# Optional: Show skipped stocks
+if "skipped_stocks" in st.session_state:
+    st.markdown("### 📉 Skipped Stocks by RSI")
+    df_skipped = pd.DataFrame(st.session_state["skipped_stocks"])
+    if not df_skipped.empty and "RSI" in df_skipped.columns:
+        st.dataframe(df_skipped.sort_values("RSI", ascending=False).head(10))
     else:
-        st.info("No skipped stocks recorded.")
+        st.info("No skipped stock data available.")
 
-# Optional: Show Logs
-if "scan_logs" in st.session_state and st.session_state["scan_logs"]:
-    with st.expande
+# Optional: Scan logs
+if "scan_logs" in st.session_state:
+    with st.expander("📝 View Scan Logs"):
+        for log in st.session_state["scan_logs"]:
+            st.text(log)
