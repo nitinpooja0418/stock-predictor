@@ -14,6 +14,7 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
         "1d": ("3mo", "1d")  # alias
     }
 
+    df["Close"] = df["Close"].squeeze()
     period, interval = tf_map.get(timeframe, ("5d", "15m"))
 
     for symbol in stock_list:
