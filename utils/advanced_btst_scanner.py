@@ -2,11 +2,12 @@ import yfinance as yf
 import pandas as pd
 from ta.trend import EMAIndicator, MACD
 from ta.momentum import RSIIndicator
+import sys
 
-def fetch_btst_candidates(stock_list, timeframe="15m"):
+def fetch_btst_candidates(stock_list, timeframe="15m", test_mode=False):
     btst_stocks = []
 
-    # Map UI timeframe to yfinance arguments
+    # Map timeframe for yfinance
     tf_map = {
         "5m": ("5d", "5m"),
         "15m": ("5d", "15m"),
@@ -18,7 +19,7 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
     for symbol in stock_list:
         try:
             df = yf.download(
-                symbol + ".NS",
+                f"{symbol}.NS",
                 period=period,
                 interval=interval,
                 auto_adjust=False,
@@ -26,22 +27,23 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
             )
 
             if df.empty or len(df) < 30:
+                if test_mode:
+                    print(f"{symbol}: Not enough data.")
                 continue
 
-            # Ensure required columns are floats and Series
-            df["Close"] = df["Close"].astype(float)
-            df["Volume"] = df["Volume"].astype(float)
+            df.dropna(subset=["Close", "Volume", "High"], inplace=True)
 
-            close_series = df["Close"]
+            close = df["Close"].astype(float)
+            volume = df["Volume"].astype(float)
+            high = df["High"].astype(float)
 
-            # Add Indicators
-            df["EMA20"] = EMAIndicator(close=close_series, window=20).ema_indicator()
-            df["RSI"] = RSIIndicator(close=close_series, window=14).rsi()
-            macd = MACD(close=close_series)
+            # Technical indicators
+            df["EMA20"] = EMAIndicator(close=close, window=20).ema_indicator()
+            df["RSI"] = RSIIndicator(close=close, window=14).rsi()
+            macd = MACD(close=close)
             df["MACD"] = macd.macd()
             df["MACD_Signal"] = macd.macd_signal()
 
-            # Drop NaN rows after indicators
             df.dropna(inplace=True)
 
             if len(df) < 2:
@@ -51,24 +53,20 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
             prev = df.iloc[-2]
             reason = []
 
-            # Signal 1: EMA Breakout + Volume Spike
             if last["Close"] > last["EMA20"] and last["Volume"] > prev["Volume"] * 1.5:
                 reason.append("Breakout Above EMA20 + Volume Spike")
 
-            # Signal 2: RSI Strength
-            if last["RSI"] > 55:
-                reason.append("Strong RSI (>60)")
+            if last["RSI"] > 60:
+                reason.append("Strong RSI")
 
-            # Signal 3: High Breakout
             if last["Close"] > df["High"].rolling(10).max().iloc[-2]:
                 reason.append("High Breakout")
 
-            # Signal 4: MACD Crossover
             if last["MACD"] > last["MACD_Signal"]:
                 reason.append("MACD Bullish Crossover")
 
             if len(reason) >= 2:
-                btst_stocks.append({
+                result = {
                     "Stock": symbol,
                     "Close": round(last["Close"], 2),
                     "Trend": "BTST Setup",
@@ -76,10 +74,27 @@ def fetch_btst_candidates(stock_list, timeframe="15m"):
                     "Reason": ", ".join(reason),
                     "LTP": round(last["Close"], 2),
                     "TradingView": f"https://in.tradingview.com/symbols/NSE-{symbol}/"
-                })
+                }
+
+                if test_mode:
+                    print(f"\n✅ Test Result for {symbol}:\n{result}\n")
+                else:
+                    btst_stocks.append(result)
 
         except Exception as e:
-            print(f"Error with {symbol}: {e}")
+            print(f"❌ Error with {symbol}: {e}")
             continue
 
     return btst_stocks
+
+
+# --------------------------------------
+# 🔍 TEST MODE: Run via CLI for 1 stock
+# --------------------------------------
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        stock = sys.argv[1]
+        print(f"Testing single stock: {stock}")
+        fetch_btst_candidates([stock], timeframe="15m", test_mode=True)
+    else:
+        print("Usage: python advanced_btst_scanner.py <NSE_STOCK_SYMBOL>")
