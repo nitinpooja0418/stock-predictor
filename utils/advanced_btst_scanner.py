@@ -19,52 +19,52 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
 
             df.dropna(inplace=True)
 
+            # Ensure correct structure of data (1D Series only)
+            for col in ["Close", "Volume", "High"]:
+                if isinstance(df[col], pd.DataFrame):
+                    df[col] = df[col].squeeze()
+                elif hasattr(df[col], "values") and df[col].values.ndim > 1:
+                    df[col] = pd.Series(df[col].values.ravel(), index=df.index)
+
             required_cols = ["Close", "Volume", "High"]
             if not all(col in df.columns for col in required_cols):
                 scan_logs.append(f"❌ Error with {symbol}: Missing required columns")
                 continue
 
-            df.dropna(inplace=True)
-            # Ensure columns are 1D
-            df["Close"] = df["Close"].squeeze()
-            df["Volume"] = df["Volume"].squeeze()
-            df["High"] = df["High"].squeeze()
-
-            # Indicators
-            close_series = df["Close"]
-            df["EMA20"] = EMAIndicator(close=close_series, window=20).ema_indicator()
-            df["RSI"] = RSIIndicator(close=close_series, window=14).rsi()
-            macd = MACD(close=close_series)
+            # Technical indicators
+            df["EMA20"] = EMAIndicator(close=df["Close"], window=20).ema_indicator()
+            df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
+            macd = MACD(close=df["Close"])
             df["MACD"] = macd.macd()
             df["MACD_signal"] = macd.macd_signal()
+
+            # Squeeze again if MACD returned 2D
+            for col in ["EMA20", "RSI", "MACD", "MACD_signal"]:
+                if isinstance(df[col], pd.DataFrame):
+                    df[col] = df[col].squeeze()
 
             last = df.iloc[-1]
             prev = df.iloc[-2]
 
             reasons = []
 
-            # Conditions
-            if float(last["Close"]) > float(last["EMA20"]):
+            # Entry criteria
+            if last["Close"] > last["EMA20"]:
                 reasons.append("Above EMA20")
-
-            if float(last["Volume"]) > float(prev["Volume"]) * 1.5:
+            if last["Volume"] > prev["Volume"] * 1.5:
                 reasons.append("Volume Spike")
-
-            if float(last["MACD"]) > float(last["MACD_signal"]):
+            if last["MACD"] > last["MACD_signal"]:
                 reasons.append("MACD Bullish Crossover")
-
-            if float(last["RSI"]) > 55:
+            if last["RSI"] > 55:
                 reasons.append(f"RSI Strong ({round(last['RSI'], 1)})")
 
+            # Breakout check
             try:
-                rolling_high_series = df["High"].rolling(10).max()
-                if len(rolling_high_series) >= 2:
-                    prev_rolling_high = rolling_high_series.iloc[-2]
-                    if pd.notna(prev_rolling_high):
-                        if float(last["Close"]) > float(prev_rolling_high):
-                            reasons.append("10-Bar High Breakout")
+                prev_high = df["High"].rolling(10).max().iloc[-2]
+                if pd.notna(prev_high) and last["Close"] > prev_high:
+                    reasons.append("10-Bar High Breakout")
             except Exception as e:
-                scan_logs.append(f"⚠️ {symbol}: High breakout check error: {e}")
+                scan_logs.append(f"⚠️ {symbol}: Breakout error: {e}")
 
             # Decision
             if len(reasons) >= min_conditions:
@@ -83,8 +83,8 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
 
         except Exception as e:
             scan_logs.append(f"⚠️ {symbol}: {e}")
-            continue
 
+    # Store logs in session
     if not test_mode:
         st.session_state["skipped_stocks"] = skipped_stocks
         st.session_state["scan_logs"] = scan_logs
