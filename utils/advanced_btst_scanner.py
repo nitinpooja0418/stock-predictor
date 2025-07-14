@@ -13,6 +13,8 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
         try:
             df = yf.download(symbol + ".NS", period="5d", interval=timeframe, progress=False)
 
+            time.sleep(0.5)  # ➡️ Adds a 0.5-second delay after each request
+            
             if df.empty or len(df) < 30:
                 scan_logs.append(f"{symbol}: Insufficient data")
                 continue
