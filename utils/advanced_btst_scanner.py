@@ -3,6 +3,7 @@ import pandas as pd
 from ta.trend import EMAIndicator, MACD
 from ta.momentum import RSIIndicator
 import streamlit as st
+import time
 
 def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mode=False):
     btst_stocks = []
@@ -13,7 +14,7 @@ def fetch_btst_candidates(stock_list, timeframe="15m", min_conditions=3, test_mo
         try:
             df = yf.download(symbol + ".NS", period="5d", interval=timeframe, progress=False)
 
-            time.sleep(0.5)  # ➡️ Adds a 0.5-second delay after each request
+            time.sleep(1)  # ➡️ Adds a 0.5-second delay after each request
             
             if df.empty or len(df) < 30:
                 scan_logs.append(f"{symbol}: Insufficient data")
